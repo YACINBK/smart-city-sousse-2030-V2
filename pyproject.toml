@@ -1,0 +1,13 @@
+[project]
+name = "neo-sousse-2030"
+version = "1.0.0"
+description = "Smart City Platform with NL→SQL Compilation and Generative AI"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "scenario_*.py"]
+python_functions = ["test_*", "run"]
+
+[tool.ruff]
+line-length = 100
