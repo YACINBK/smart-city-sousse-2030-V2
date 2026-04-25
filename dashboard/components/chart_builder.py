@@ -1,6 +1,8 @@
-"""Auto-selects and builds appropriate Plotly chart from query results."""
+"""Auto-selects and builds an appropriate Plotly chart from query results."""
 
 from __future__ import annotations
+
+import re
 
 import pandas as pd
 import plotly.express as px
@@ -26,6 +28,42 @@ def _neon_fig(fig):
     return fig
 
 
+def _normalize_col_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
+def _is_time_col(name: str) -> bool:
+    normalized = _normalize_col_name(name)
+    tokens = set(filter(None, normalized.split("_")))
+    if normalized.endswith(("_at", "_date", "_time", "_ts")):
+        return True
+    return bool(tokens & {"date", "time", "timestamp", "bucket", "heure", "jour", "mois", "annee"})
+
+
+def _is_lat_col(name: str) -> bool:
+    normalized = _normalize_col_name(name)
+    return normalized in {"lat", "latitude"} or normalized.endswith(("_lat", "_latitude"))
+
+
+def _is_lon_col(name: str) -> bool:
+    normalized = _normalize_col_name(name)
+    return normalized in {"lon", "lng", "long", "longitude"} or normalized.endswith(
+        ("_lon", "_lng", "_long", "_longitude")
+    )
+
+
+def _detect_geo_columns(df: pd.DataFrame) -> tuple[str | None, str | None]:
+    lat_col = next((column for column in df.columns if _is_lat_col(column)), None)
+    lon_col = next((column for column in df.columns if _is_lon_col(column)), None)
+    return lat_col, lon_col
+
+
+def _coerce_coordinates(series: pd.Series, *, axis: str) -> pd.Series:
+    coords = pd.to_numeric(series, errors="coerce")
+    min_value, max_value = (-90, 90) if axis == "lat" else (-180, 180)
+    return coords.where(coords.between(min_value, max_value))
+
+
 def auto_chart(rows: list[dict], sql: str = "") -> None:
     """Analyze columns and render the most appropriate chart type."""
     if not rows:
@@ -38,18 +76,45 @@ def auto_chart(rows: list[dict], sql: str = "") -> None:
     cols = list(df.columns)
     sql_upper = (sql or "").upper()
 
-    time_cols = [c for c in cols if any(k in c.lower() for k in ("at", "date", "time", "bucket", "heure"))]
-    numeric_cols = [c for c in cols if pd.api.types.is_numeric_dtype(df[c])]
-    categorical_cols = [c for c in cols if c not in numeric_cols and c not in time_cols]
-    geo_cols = [c for c in cols if "lat" in c.lower() or "lon" in c.lower()]
+    time_cols = [column for column in cols if _is_time_col(column)]
+    numeric_cols = [column for column in cols if pd.api.types.is_numeric_dtype(df[column])]
+    categorical_cols = [column for column in cols if column not in numeric_cols and column not in time_cols]
+    lat_col, lon_col = _detect_geo_columns(df)
 
     if len(cols) == 1 and len(rows) == 1:
-        st.metric("Résultat", list(rows[0].values())[0])
+        st.metric("Resultat", list(rows[0].values())[0])
         return
+
+    if lat_col and lon_col:
+        map_df = df.copy()
+        map_df[lat_col] = _coerce_coordinates(map_df[lat_col], axis="lat")
+        map_df[lon_col] = _coerce_coordinates(map_df[lon_col], axis="lon")
+        map_df = map_df.dropna(subset=[lat_col, lon_col])
+        if not map_df.empty:
+            color_col = next((column for column in numeric_cols if column not in {lat_col, lon_col}), None)
+            fig = px.scatter_mapbox(
+                map_df,
+                lat=lat_col,
+                lon=lon_col,
+                color=color_col,
+                hover_data=cols,
+                mapbox_style="carto-darkmatter",
+                center={
+                    "lat": float(map_df[lat_col].mean()),
+                    "lon": float(map_df[lon_col].mean()),
+                },
+                zoom=11,
+                height=420,
+                title="Carte des resultats",
+                color_continuous_scale=[[0, "#00BCFF"], [1, "#BBF351"]],
+            )
+            fig.update_layout(mapbox=dict(style="carto-darkmatter"))
+            st.plotly_chart(_neon_fig(fig), use_container_width=True)
+            return
 
     if time_cols and numeric_cols:
         x_col = time_cols[0]
-        y_col = numeric_cols[0]
+        y_col = next((column for column in numeric_cols if column not in {lat_col, lon_col}), numeric_cols[0])
         try:
             df[x_col] = pd.to_datetime(df[x_col])
             df = df.sort_values(x_col)
@@ -60,7 +125,7 @@ def auto_chart(rows: list[dict], sql: str = "") -> None:
                 df,
                 x=x_col,
                 y=y_col,
-                title=f"Évolution de {y_col} dans le temps",
+                title=f"Evolution de {y_col} dans le temps",
                 labels={x_col: "Date / heure", y_col: y_col},
                 color_discrete_sequence=["#00BCFF"],
             )
@@ -86,26 +151,6 @@ def auto_chart(rows: list[dict], sql: str = "") -> None:
             color=y_col,
             color_continuous_scale=[[0, "#00BCFF"], [1, "#BBF351"]],
         )
-        st.plotly_chart(_neon_fig(fig), use_container_width=True)
-        return
-
-    if len(geo_cols) >= 2:
-        lat_col = next(c for c in geo_cols if "lat" in c.lower())
-        lon_col = next(c for c in geo_cols if "lon" in c.lower())
-        color_col = numeric_cols[0] if numeric_cols else None
-        fig = px.scatter_mapbox(
-            df,
-            lat=lat_col,
-            lon=lon_col,
-            color=color_col,
-            hover_data=cols,
-            mapbox_style="carto-darkmatter",
-            zoom=11,
-            height=420,
-            title="Carte des résultats",
-            color_continuous_scale=[[0, "#00BCFF"], [1, "#BBF351"]],
-        )
-        fig.update_layout(mapbox=dict(style="carto-darkmatter"))
         st.plotly_chart(_neon_fig(fig), use_container_width=True)
         return
 

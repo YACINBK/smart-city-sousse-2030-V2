@@ -42,6 +42,8 @@ class SQLCodeGenerator:
 
         # ── Cross-table aggregation shortcut ─────────────────
         meta = getattr(node, "meta", None) or {}
+        if meta.get("avg_join"):
+            return self._generate_cross_table_avg(node, table, meta, next_param, params)
         if meta.get("cross_join"):
             return self._generate_cross_table(node, table, meta, next_param, params)
 
@@ -180,6 +182,41 @@ class SQLCodeGenerator:
             limit_clause = f"LIMIT {node.intent.n}"
 
         where_parts: list[str] = []
+        where_parts.append(f"{agg_table}.{agg_col} IS NOT NULL")
+        if node.where:
+            for i, cond in enumerate(node.where.conditions):
+                col = self._col(cond.left)
+                val = cond.right.coerced if cond.right.coerced is not None else cond.right.raw
+                if str(val).lower() in {"null", "nul", "aucun"}:
+                    where_parts.append(f"{col} IS NULL")
+                else:
+                    p = next_param(val)
+                    where_parts.append(f"{col} {cond.op} {p}")
+                if i < len(node.where.operators):
+                    where_parts.append(node.where.operators[i])
+        where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+
+        parts = [p for p in [select_clause, from_clause, join_clause,
+                              where_clause, groupby_clause, orderby_clause, limit_clause] if p]
+        sql = "\n".join(parts)
+        description = (
+            f"Afficher les {node.intent.n if isinstance(node.intent, TopNIntent) else ''} "
+            f"{entity_table} triés par {agg_col} moyen ({direction})."
+        ).strip()
+        return CompileResult(sql=sql, params=params, description=description)
+
+    def _generate_cross_table_avg(
+        self, node: QueryNode, entity_table: str, meta: dict, next_param, params: dict
+    ) -> "CompileResult":
+        intent = node.intent
+        target = intent.target
+        agg_col = self._col(target)
+
+        select_clause = f"SELECT AVG({agg_col}) AS moyenne_{target.resolved_column}"
+        from_clause = f"FROM {entity_table}"
+        join_clause = meta["avg_join"]
+
+        where_parts: list[str] = []
         if node.where:
             for i, cond in enumerate(node.where.conditions):
                 col = self._col(cond.left)
@@ -193,13 +230,9 @@ class SQLCodeGenerator:
                     where_parts.append(node.where.operators[i])
         where_clause = f"WHERE {' '.join(where_parts)}" if where_parts else ""
 
-        parts = [p for p in [select_clause, from_clause, join_clause,
-                              where_clause, groupby_clause, orderby_clause, limit_clause] if p]
+        parts = [p for p in [select_clause, from_clause, join_clause, where_clause] if p]
         sql = "\n".join(parts)
-        description = (
-            f"Afficher les {node.intent.n if isinstance(node.intent, TopNIntent) else ''} "
-            f"{entity_table} triés par {agg_col} moyen ({direction})."
-        ).strip()
+        description = self._describe(node, entity_table)
         return CompileResult(sql=sql, params=params, description=description)
 
     def _col(self, attr: AttributeRef) -> str:

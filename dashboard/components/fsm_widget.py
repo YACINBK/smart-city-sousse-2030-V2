@@ -1,6 +1,7 @@
 """FSM helper widgets: state badge, transition controls, SVG renderer."""
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 _BAD_STATES = {"HORS_SERVICE", "EN_PANNE"}
 _STATE_TONE = {
@@ -73,6 +74,18 @@ def transition_buttons(fsm, current_state: str, on_trigger=None) -> str | None:
 
 def show_svg(svg_bytes: bytes | None, fallback_html: str | None = None) -> None:
     if svg_bytes:
-        st.image(svg_bytes, use_container_width=True)
+        try:
+            svg_text = svg_bytes.decode("utf-8")
+            components.html(
+                f"""
+                <div style="width:100%;overflow:auto;background:transparent;padding:0.25rem 0;">
+                  {svg_text}
+                </div>
+                """,
+                height=520,
+                scrolling=True,
+            )
+        except Exception:
+            st.image(svg_bytes, use_container_width=True)
     elif fallback_html:
         st.markdown(fallback_html, unsafe_allow_html=True)

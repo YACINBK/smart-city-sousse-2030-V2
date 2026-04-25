@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="")
     use_mock_llm: bool = Field(default=False)
     openai_model: str = Field(default="gpt-4o-mini")
+    openai_base_url: str = Field(default="")
 
     # FSM behavior
     hors_service_alert_delay_seconds: int = Field(default=86400)

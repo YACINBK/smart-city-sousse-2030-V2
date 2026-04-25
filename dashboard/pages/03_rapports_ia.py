@@ -1,4 +1,4 @@
-"""Rapports analytiques générés par le module d'IA."""
+"""Rapports analytiques generes par le module d'IA."""
 
 import os
 import sys
@@ -12,13 +12,13 @@ from ai.action_advisor import ActionAdvisor
 from ai.report_generator import REPORT_TYPES, ReportGenerator
 from dashboard.theme import apply_theme
 
-st.set_page_config(page_title="Rapports IA — Neo-Sousse 2030", layout="wide")
+st.set_page_config(page_title="Rapports IA - Neo-Sousse 2030", layout="wide")
 apply_theme()
 
 st.markdown("# Rapports analytiques")
 st.caption(
-    "Le module d'IA générative agrège les données récentes, rédige un rapport "
-    "structuré et propose des actions prioritaires aux gestionnaires."
+    "Le module d'IA generative agrege les donnees recentes, redige un rapport "
+    "structure et propose des actions prioritaires aux gestionnaires."
 )
 
 
@@ -49,11 +49,11 @@ with col3:
     end_date = st.date_input("Au", value=date.today())
 
 col_gen, col_act, _ = st.columns([1, 1, 4])
-generate = col_gen.button("Générer le rapport", type="primary")
+generate = col_gen.button("Generer le rapport", type="primary")
 actions_btn = col_act.button("Actions prioritaires")
 
 if report_type in ("qualite_air", "interventions", "capteurs"):
-    with st.expander("Données source injectées dans le prompt", expanded=False):
+    with st.expander("Donnees source injectees dans le prompt", expanded=False):
         try:
             from ai.context_builder import DBContextBuilder
 
@@ -65,15 +65,15 @@ if report_type in ("qualite_air", "interventions", "capteurs"):
             else:
                 st.markdown(ctx.sensor_status_summary())
         except Exception as exc:
-            st.caption(f"Données indisponibles — {exc}")
+            st.caption(f"Donnees indisponibles - {exc}")
 
 if generate:
-    with st.spinner("Génération du rapport en cours."):
+    with st.spinner("Generation du rapport en cours."):
         try:
             st.session_state["last_report"] = gen.generate(report_type, start_date, end_date)
             st.session_state["last_report_type"] = report_type
         except Exception as exc:
-            st.error(f"Erreur lors de la génération — {exc}")
+            st.error(f"Erreur lors de la generation - {exc}")
 
 if st.session_state.get("last_report"):
     st.divider()
@@ -97,20 +97,20 @@ if st.session_state.get("last_report"):
             pdf.cell(0, 8, txt=safe_line[:100], ln=True)
         pdf_bytes = bytes(pdf.output())
         st.download_button(
-            "Télécharger PDF",
+            "Telecharger PDF",
             data=pdf_bytes,
             file_name=f"rapport_{st.session_state.get('last_report_type', 'neo_sousse')}.pdf",
             mime="application/pdf",
         )
     except Exception as exc:
-        st.caption(f"Export PDF indisponible — {exc}")
+        st.caption(f"Export PDF indisponible - {exc}")
 
 if actions_btn:
     with st.spinner("Analyse de la situation en cours."):
         try:
             st.session_state["last_ai_actions"] = advisor.get_priority_actions()
         except Exception as exc:
-            st.error(f"Erreur — {exc}")
+            st.error(f"Erreur - {exc}")
 
 if st.session_state.get("last_ai_actions"):
     data = st.session_state["last_ai_actions"]
@@ -124,16 +124,25 @@ if st.session_state.get("last_ai_actions"):
         unsafe_allow_html=True,
     )
 
-    if data.get("resume"):
+    if data.get("resume") and data.get("actions"):
         st.markdown(f"> {data['resume']}")
+    elif data.get("resume") and not data.get("actions"):
+        st.warning(data["resume"])
+        if data.get("raw_output"):
+            with st.expander("Sortie IA brute"):
+                st.code(data["raw_output"], language="json")
 
     for action in data.get("actions", []):
         title = action.get("titre") or action.get("title") or "Action"
         if action.get("priorite"):
-            title = f"Priorité {action['priorite']} — {title}"
+            title = f"Priorite {action['priorite']} - {title}"
         with st.expander(title):
             col_a, col_b = st.columns(2)
-            col_a.markdown(f"**Description** — {action.get('description') or action.get('detail', '')}")
-            col_b.markdown(f"**Responsable** — {action.get('responsable', 'N/A')}")
-            col_a.markdown(f"**Délai** — {action.get('delai_heures', '?')} h")
-            col_b.markdown(f"**Impact** — {action.get('impact', action.get('detail', ''))}")
+            col_a.markdown(f"**Description** - {action.get('description') or action.get('detail', '')}")
+            if action.get("justification"):
+                col_a.markdown(f"**Justification** - {action['justification']}")
+            col_b.markdown(f"**Responsable** - {action.get('responsable', 'N/A')}")
+            col_a.markdown(f"**Delai** - {action.get('delai_heures', '?')} h")
+            col_b.markdown(f"**Impact** - {action.get('impact', action.get('detail', ''))}")
+            if action.get("indicateur_succes"):
+                st.markdown(f"**Indicateur de succes** - {action['indicateur_succes']}")

@@ -2,6 +2,7 @@
 
 import os
 import sys
+import json
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -50,9 +51,62 @@ def get_visualizer():
     return GraphvizVisualizer()
 
 
+@st.cache_resource
+def get_scheduler():
+    from fsm.scheduler import FSMScheduler
+
+    scheduler = FSMScheduler(repo=get_repo())
+    scheduler.start()
+    return scheduler
+
+
+def _sync_business_state(entity_type: str, entity_id: int, to_state: str, ctx: dict) -> None:
+    from database.connection import execute_query
+
+    if entity_type == "capteur":
+        execute_query(
+            "UPDATE capteurs SET statut=:s WHERE id=:id",
+            {"s": to_state, "id": entity_id},
+        )
+        return
+
+    if entity_type == "intervention":
+        execute_query(
+            """UPDATE interventions
+               SET statut=:statut,
+                   tech1_id=COALESCE(:tech1_id, tech1_id),
+                   tech2_id=COALESCE(:tech2_id, tech2_id),
+                   rapport_tech1=COALESCE(:rapport_tech1, rapport_tech1),
+                   rapport_tech2=COALESCE(:rapport_tech2, rapport_tech2),
+                   completed_at=CASE WHEN :statut='TERMINÉ' THEN NOW() ELSE completed_at END
+               WHERE id=:id""",
+            {
+                "id": entity_id,
+                "statut": to_state,
+                "tech1_id": ctx.get("tech1_id"),
+                "tech2_id": ctx.get("tech2_id"),
+                "rapport_tech1": ctx.get("rapport_tech1"),
+                "rapport_tech2": ctx.get("rapport_tech2"),
+            },
+        )
+        if ctx.get("ai_validation") is not None:
+            execute_query(
+                "UPDATE interventions SET ai_validation=CAST(:ai AS JSONB) WHERE id=:id",
+                {"id": entity_id, "ai": json.dumps(ctx["ai_validation"], ensure_ascii=False)},
+            )
+        return
+
+    if entity_type == "vehicule":
+        execute_query(
+            "UPDATE vehicules SET statut=:s WHERE id=:id",
+            {"s": to_state, "id": entity_id},
+        )
+
+
 fsms = get_fsm_instances()
 repo = get_repo()
 viz = get_visualizer()
+scheduler = get_scheduler()
 
 
 col_left, col_right = st.columns([2, 3], gap="large")
@@ -105,24 +159,12 @@ with col_left:
                     result.from_state, event, result.to_state,
                     triggered_by=triggered_by,
                 )
+                _sync_business_state(entity_type, entity_id, result.to_state, ctx)
                 if entity_type == "capteur":
-                    from database.connection import execute_query
-                    execute_query(
-                        "UPDATE capteurs SET statut=:s WHERE id=:id",
-                        {"s": result.to_state, "id": entity_id},
-                    )
                     if result.to_state == "HORS_SERVICE":
-                        execute_query(
-                            """INSERT INTO alertes (type, entity_type, entity_id, message, severity)
-                               VALUES (:t, :et, :eid, :msg, :sev)""",
-                            {
-                                "t": "hors_service",
-                                "et": "capteur",
-                                "eid": entity_id,
-                                "msg": f"Capteur #{entity_id} passé HORS_SERVICE depuis le tableau de bord.",
-                                "sev": "CRITICAL",
-                            },
-                        )
+                        scheduler.schedule_hors_service_alert(entity_id)
+                    elif result.from_state == "HORS_SERVICE":
+                        scheduler.cancel_hors_service_alert(entity_id)
             except Exception as db_err:
                 st.warning(f"Transition appliquée mais non persistée — {db_err}")
 

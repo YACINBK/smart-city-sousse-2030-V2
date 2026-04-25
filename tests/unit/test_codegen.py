@@ -19,6 +19,7 @@ class TestCompilationPipeline:
         result = pipeline.compile_safe("combien de capteurs sont hors service")
         # Should compile even if 'sont' is stop word
         assert result["success"]
+        assert list(result["params"].values()) == ["HORS_SERVICE"]
 
     def test_compile_show_all(self, pipeline):
         result = pipeline.compile_safe("affiche capteurs")
@@ -46,6 +47,29 @@ class TestCompilationPipeline:
         result = pipeline.compile_safe("moyenne pm25 des mesures")
         assert result["success"]
         assert "AVG" in result["sql"].upper()
+
+    def test_compile_cross_table_avg_join(self, pipeline):
+        result = pipeline.compile_safe("moyenne pm25 des capteurs actifs")
+        assert result["success"]
+        sql = result["sql"].upper()
+        assert "JOIN MESURES" in sql
+        assert list(result["params"].values()) == ["ACTIF"]
+
+    def test_compile_interventions_en_cours(self, pipeline):
+        result = pipeline.compile_safe("quelles interventions sont en cours")
+        assert result["success"]
+        assert "!=" in result["sql"]
+        assert list(result["params"].values()) == ["TERMINÉ"]
+
+    def test_compile_superlative_adds_limit_one(self, pipeline):
+        result = pipeline.compile_safe("donne-moi le trajet le plus économique en CO2")
+        assert result["success"]
+        assert "LIMIT 1" in result["sql"].upper()
+
+    def test_compile_top_pollution_filters_null_measures(self, pipeline):
+        result = pipeline.compile_safe("affiche les 5 zones les plus polluées")
+        assert result["success"]
+        assert "MESURES.PM25 IS NOT NULL" in result["sql"].upper()
 
     def test_description_always_present(self, pipeline):
         result = pipeline.compile_safe("affiche interventions")

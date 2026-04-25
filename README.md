@@ -50,11 +50,26 @@ python database/seed/seed_all.py
 streamlit run dashboard/app.py
 ```
 
+Sous PowerShell :
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:DATABASE_URL = "postgresql://neo_user:neo_password@localhost:5433/neo_sousse"
+python database/seed/seed_all.py
+streamlit run dashboard/app.py
+```
+
 Si vous préférez lancer toute la stack conteneurisée :
 
 ```bash
 docker compose up --build
 ```
+
+Le service `app` lance automatiquement le seed au démarrage. Côté hôte Windows/Linux,
+PostgreSQL est exposé sur le port `5433`; à l'intérieur du réseau Docker, l'application
+utilise `db:5432`.
 
 ## Sans Docker
 
@@ -81,9 +96,20 @@ export USE_MOCK_LLM=true
 streamlit run dashboard/app.py
 ```
 
+Avec une clé API réelle :
+
+- OpenAI direct :
+  `OPENAI_API_KEY=...`
+  `OPENAI_MODEL=gpt-4o-mini` (ou autre modèle compatible)
+- Fournisseur compatible OpenAI, comme OpenRouter :
+  `OPENAI_API_KEY=...`
+  `OPENAI_BASE_URL=https://openrouter.ai/api/v1`
+  `OPENAI_MODEL=<modele-compatible-chez-votre-fournisseur>`
+
 En mode hors ligne :
 
 - les appels LLM retournent des réponses mock réalistes en français ;
+- si une clé API est configurée mais que l'appel OpenAI échoue, le client repasse sur le mock ;
 - la base de données est optionnelle ;
 - le dashboard affiche `—` ou des états vides au lieu de planter si la DB est indisponible.
 

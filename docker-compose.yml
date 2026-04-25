@@ -25,13 +25,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql://neo_user:neo_password@db:5432/neo_sousse
     ports:
       - "8501:8501"
     volumes:
       - .:/app
-    command: streamlit run dashboard/app.py --server.address 0.0.0.0
+    command: >
+      sh -c "python database/seed/seed_all.py &&
+             streamlit run dashboard/app.py --server.address 0.0.0.0"
 
 volumes:
   pgdata:

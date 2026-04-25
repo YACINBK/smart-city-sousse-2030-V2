@@ -108,8 +108,16 @@ class NLParser:
         if self._match(TokenType.KW_GROUPBY):
             node.groupby = self._parse_groupby()
 
+        order_token = None
         if self._match(TokenType.KW_ORDER_ASC, TokenType.KW_ORDER_DESC):
+            order_token = self._current()
             node.orderby = self._parse_orderby()
+            if (
+                isinstance(node.intent, SelectIntent)
+                and node.limit is None
+                and order_token.value == "le plus"
+            ):
+                node.limit = LimitClause(n=1, pos=order_token.pos)
 
         if self._match(TokenType.KW_LIMIT):
             node.limit = self._parse_limit()

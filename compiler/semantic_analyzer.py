@@ -9,6 +9,8 @@ Responsibilities:
   5. Raise SemanticError with French messages for unknown entities/columns
 """
 
+import unicodedata
+
 from compiler.ast_nodes import (
     QueryNode, EntityRef, AttributeRef, ValueNode,
     AvgIntent, CountIntent, TopNIntent, SelectIntent,
@@ -33,6 +35,50 @@ _JOIN_PATHS: dict[tuple[str, str], str] = {
 _NUMERIC_AGG_COLS = {"pm25", "pm10", "temperature", "humidite", "co2", "no2",
                      "niveau_bruit", "indice_trafic", "score_ecolo", "economie_co2"}
 
+_ENUM_VALUE_MAPS: dict[tuple[str, str], dict[str, str]] = {
+    ("capteurs", "statut"): {
+        "inactif": "INACTIF",
+        "actif": "ACTIF",
+        "signale": "SIGNALÉ",
+        "signalé": "SIGNALÉ",
+        "en_maintenance": "EN_MAINTENANCE",
+        "hors_service": "HORS_SERVICE",
+    },
+    ("interventions", "statut"): {
+        "demande": "DEMANDE",
+        "tech1_assigne": "TECH1_ASSIGNÉ",
+        "tech1_assigné": "TECH1_ASSIGNÉ",
+        "tech2_valide": "TECH2_VALIDE",
+        "tech2_validé": "TECH2_VALIDE",
+        "ia_valide": "IA_VALIDE",
+        "ia_validé": "IA_VALIDE",
+        "termine": "TERMINÉ",
+        "terminé": "TERMINÉ",
+    },
+    ("interventions", "priorite"): {
+        "basse": "BASSE",
+        "normale": "NORMALE",
+        "haute": "HAUTE",
+        "urgente": "URGENTE",
+    },
+    ("vehicules", "statut"): {
+        "stationne": "STATIONNÉ",
+        "stationné": "STATIONNÉ",
+        "en_route": "EN_ROUTE",
+        "en_panne": "EN_PANNE",
+        "arrive": "ARRIVÉ",
+        "arrivé": "ARRIVÉ",
+    },
+}
+
+
+def _normalize_literal(value: str) -> str:
+    value = value.strip().lower().replace(" ", "_").replace("-", "_")
+    return "".join(
+        c for c in unicodedata.normalize("NFD", value)
+        if unicodedata.category(c) != "Mn"
+    )
+
 
 class SemanticAnalyzer:
 
@@ -42,6 +88,7 @@ class SemanticAnalyzer:
         self._resolve_attributes(node)
         self._coerce_values(node)
         self._infer_aggregation_target(node)
+        self._rewrite_cross_table_avg(node)
         self._rewrite_cross_table_aggregation(node)
         return node
 
@@ -147,6 +194,29 @@ class SemanticAnalyzer:
                 v.coerced = v.raw
                 v.kind = "string"
 
+            left_table = cond.left.resolved_table or table
+            left_column = cond.left.resolved_column or cond.left.raw_name.lower()
+            if not left_table or not left_column:
+                continue
+
+            normalized = _normalize_literal(str(v.coerced))
+            if (
+                left_table == "interventions"
+                and left_column == "statut"
+                and normalized == "en_cours"
+            ):
+                cond.op = "!="
+                v.coerced = "TERMINÉ"
+                v.raw = "TERMINÉ"
+                v.kind = "string"
+                continue
+
+            mapped = _ENUM_VALUE_MAPS.get((left_table, left_column), {}).get(normalized)
+            if mapped is not None:
+                v.coerced = mapped
+                v.raw = mapped
+                v.kind = "string"
+
     def _find_in_any_table(self, canonical: str) -> str | None:
         """Return the first table name in SCHEMA_REGISTRY that contains `canonical`."""
         for tname, cols in SCHEMA_REGISTRY.items():
@@ -196,6 +266,29 @@ class SemanticAnalyzer:
         node.meta["agg_col"] = orderby_attr.resolved_column
         node.meta["agg_table"] = data_table
         node.meta["group_col"] = "nom"  # dimension label column (zones.nom, etc.)
+
+    def _rewrite_cross_table_avg(self, node: QueryNode) -> None:
+        """Attach join metadata when AVG targets a different table than the entity."""
+        if not isinstance(node.intent, AvgIntent):
+            return
+        if node.entity is None or node.intent.target is None:
+            return
+
+        entity_table = node.entity.resolved_table
+        target_table = node.intent.target.resolved_table
+        if entity_table is None or target_table is None or target_table == entity_table:
+            return
+
+        join_sql = _JOIN_PATHS.get((entity_table, target_table))
+        if join_sql is None:
+            raise SemanticError(
+                f"Impossible de relier '{entity_table}' à '{target_table}' pour calculer la moyenne.",
+                pos=node.intent.pos,
+            )
+
+        if not hasattr(node, "meta") or node.meta is None:
+            node.meta = {}
+        node.meta["avg_join"] = join_sql.format(entity=entity_table)
 
     def _infer_aggregation_target(self, node: QueryNode) -> None:
         """

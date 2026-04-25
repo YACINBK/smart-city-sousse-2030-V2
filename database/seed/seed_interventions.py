@@ -53,7 +53,7 @@ def seed_interventions():
                (capteur_id, tech1_id, tech2_id, statut, description, priorite,
                 ai_validation, created_at, completed_at)
                VALUES (:cid, :t1, :t2, :statut, :desc, :prio,
-                       :ai::jsonb, :created, :completed)""",
+                       CAST(:ai AS JSONB), :created, :completed)""",
             {
                 "cid": capteur_id, "t1": tech1_id, "t2": tech2_id,
                 "statut": statut, "desc": desc, "prio": priorite,
