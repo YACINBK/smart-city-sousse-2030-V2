@@ -1,163 +1,230 @@
-# Neo-Sousse 2030
+# Smart City Sousse 2030 V2
 
-Plateforme intégrée de **compilation NL→SQL**, **automates à états finis** et
-**IA générative** pour la gestion intelligente d'une métropole fictive.
+Smart City Sousse 2030 V2 is a ready-to-run urban operations platform that combines a French natural-language-to-SQL compiler, finite-state workflow engines, AI-assisted reporting, and an interactive Streamlit control dashboard.
 
-Projet réalisé dans le cadre du module *Théorie des Langages et Compilation*
-(Section IA 2 — 2025/2026).
+The application dashboard is branded as `Neo-Sousse 2030` and exposes the full platform through a single operator interface for data exploration, workflow supervision, and AI-supported decision-making.
 
-## Vue d'ensemble
+## Overview
 
-Le système permet de :
+- Compile French business questions into parameterized SQL.
+- Supervise sensor, intervention, and vehicle lifecycles with deterministic finite-state machines.
+- Generate analytical reports and priority actions with either a real or mock LLM backend.
+- Explore operational, relational, and time-series datasets from a unified dashboard.
+- Run the platform locally or through Docker Compose.
 
-1. Poser une question en français et obtenir le SQL correspondant.
-2. Piloter les cycles de vie métier des capteurs, interventions et véhicules.
-3. Générer des rapports analytiques et des actions prioritaires via un LLM.
-4. Explorer les données relationnelles et temporelles depuis un dashboard Streamlit.
+## Core Capabilities
+
+### 1. Natural Language Querying
+
+The query module transforms French input into executable SQL through a compiler pipeline built around:
+
+- lexical analysis
+- parsing
+- AST generation
+- semantic validation
+- SQL code generation
+
+Operators can inspect the generated SQL, result table, chart output, and debugging pipeline in the same screen.
+
+### 2. Workflow Automation With FSMs
+
+The platform models three operational workflows as finite-state machines:
+
+- `SensorLifecycleFSM`
+- `InterventionWorkflowFSM`
+- `VehicleRouteFSM`
+
+Each workflow supports state visualization, guarded transitions, persistence, and transition history.
+
+### 3. AI Reporting And Decision Support
+
+The AI layer can:
+
+- generate structured reports for air quality, interventions, and sensor status
+- suggest priority actions with urgency levels
+- validate intervention steps through an AI-assisted decision point
+- run in offline mock mode when no API key is configured
+
+### 4. Operational Dashboard
+
+The Streamlit application includes four operator pages:
+
+- `Queries`: natural language to SQL compilation and execution
+- `Automata`: workflow visualization and transition control
+- `AI Reports`: report generation, action prioritization, PDF export
+- `Data Explorer`: sensors, measurements, interventions, and citizens
 
 ## Architecture
 
-```text
-neo-sousse-2030/
-├── compiler/        Pipeline lexer -> parser -> AST -> génération SQL
-├── fsm/             Moteur d'automates + persistance + visualisation
-├── ai/              Rapports, recommandations, validation d'interventions
-├── database/        Schéma PostgreSQL, connexion, seeders
-├── dashboard/       Application Streamlit et composants visuels
-├── tests/           Tests unitaires + scénarios
-└── config/          Paramètres applicatifs
-```
+| Module | Responsibility |
+| --- | --- |
+| `compiler/` | Lexer, parser, AST, semantic analyzer, SQL generation |
+| `fsm/` | State machines, scheduler, persistence, visualizer |
+| `ai/` | LLM client, reports, recommendations, ambiguity handling |
+| `database/` | Connection layer, schema, seed scripts |
+| `dashboard/` | Streamlit app, pages, components, UI theme |
+| `config/` | Runtime settings |
+| `tests/` | Unit and scenario validation |
 
-| Composant | Stack | Description |
-|-----------|-------|-------------|
-| Compilateur NL→SQL | Python pur | Lexer, parser, AST, analyse sémantique, SQL paramétré |
-| Moteur d'automates | moteur maison | Transitions, guards, persistance, historique |
-| Module IA | OpenAI / mock local | Rapports, recommandations, validation IA |
-| Dashboard | Streamlit + Plotly | Interface de contrôle et d'exploration |
-| Base de données | PostgreSQL / TimescaleDB | Schéma 3FN, mesures temporelles |
+## Technology Stack
+
+- Python 3.10+ (`3.11` recommended)
+- Streamlit
+- PostgreSQL
+- TimescaleDB-compatible schema
+- SQLAlchemy
+- Plotly
+- OpenAI-compatible API integration
+- pytest
+
+## Requirements
+
+- Windows 10 or Windows 11
+- Python 3.10 or newer
+- `pip`
+- Docker Desktop for containerized execution
+- Optional: Graphviz for richer FSM rendering
 
 ## Quick Start
 
-Prérequis : Python 3.11+, `pip`, PostgreSQL 14+ ou Docker, Graphviz recommandé.
+### Option 1: Run The Full Stack With Docker Compose
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-docker compose up -d db
-export DATABASE_URL=postgresql://neo_user:neo_password@localhost:5433/neo_sousse
-python database/seed/seed_all.py
-streamlit run dashboard/app.py
-```
-
-Sous PowerShell :
+This is the fastest way to start the complete platform with the database and dashboard together.
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-$env:DATABASE_URL = "postgresql://neo_user:neo_password@localhost:5433/neo_sousse"
-python database/seed/seed_all.py
-streamlit run dashboard/app.py
-```
-
-Si vous préférez lancer toute la stack conteneurisée :
-
-```bash
+Copy-Item .env.example .env
 docker compose up --build
 ```
 
-Le service `app` lance automatiquement le seed au démarrage. Côté hôte Windows/Linux,
-PostgreSQL est exposé sur le port `5433`; à l'intérieur du réseau Docker, l'application
-utilise `db:5432`.
+Access the dashboard at `http://localhost:8501`.
 
-## Sans Docker
+Notes:
 
-```bash
+- the application seeds the database automatically on startup
+- PostgreSQL is exposed on `localhost:5433`
+- inside Docker networking, the app connects to `db:5432`
+
+### Option 2: Run The Dashboard Locally
+
+Use this mode when you want the app process on your machine while keeping the database available through Docker or your own PostgreSQL instance.
+
+If you use the database from `docker compose`, set:
+
+- `DATABASE_URL=postgresql://neo_user:neo_password@localhost:5433/neo_sousse`
+
+PowerShell setup:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d db
 python -m venv .venv
-source .venv/bin/activate
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
-
-export DATABASE_URL=postgresql://neo_user:neo_password@localhost:5432/neo_sousse
-psql "$DATABASE_URL" -f database/schema.sql
-python database/seed/seed_all.py
-streamlit run dashboard/app.py
+$env:DATABASE_URL = "postgresql://neo_user:neo_password@localhost:5433/neo_sousse"
+python database\seed\seed_all.py
+streamlit run dashboard\app.py
 ```
 
-Le schéma gère désormais l'absence de TimescaleDB : l'application continue avec
-une table `mesures` classique si l'extension n'est pas disponible.
+Access the dashboard at `http://localhost:8501`.
 
-## Mode hors ligne
+## Database Initialization
 
-Le module IA peut fonctionner sans clé API :
+The schema is stored in `database\schema.sql`.
 
-```bash
-export USE_MOCK_LLM=true
-streamlit run dashboard/app.py
+- When you use Docker Compose, the database schema is initialized automatically.
+- When you use your own PostgreSQL instance, apply the schema before seeding the data.
+
+Manual initialization example:
+
+```powershell
+psql -h localhost -U neo_user -d neo_sousse -f database\schema.sql
+python database\seed\seed_all.py
 ```
 
-Avec une clé API réelle :
+To rerun all seeders explicitly:
 
-- OpenAI direct :
-  `OPENAI_API_KEY=...`
-  `OPENAI_MODEL=gpt-4o-mini` (ou autre modèle compatible)
-- Fournisseur compatible OpenAI, comme OpenRouter :
-  `OPENAI_API_KEY=...`
-  `OPENAI_BASE_URL=https://openrouter.ai/api/v1`
-  `OPENAI_MODEL=<modele-compatible-chez-votre-fournisseur>`
-
-En mode hors ligne :
-
-- les appels LLM retournent des réponses mock réalistes en français ;
-- si une clé API est configurée mais que l'appel OpenAI échoue, le client repasse sur le mock ;
-- la base de données est optionnelle ;
-- le dashboard affiche `—` ou des états vides au lieu de planter si la DB est indisponible.
-
-## Utilisation
-
-```bash
-# Tableau de bord
-streamlit run dashboard/app.py
-
-# Seed forcé même si des lignes existent déjà
-python database/seed/seed_all.py --force
-
-# Vérification rapide du compilateur
-python -c "from compiler.pipeline import NLToSQLPipeline; print(NLToSQLPipeline().compile_safe('Affiche les 5 zones les plus polluées')['sql'])"
+```powershell
+python database\seed\seed_all.py --force
 ```
 
-## Exemples de requêtes
+## Configuration
 
-| Langage naturel | SQL généré |
-|-----------------|------------|
-| Affiche les 5 zones les plus polluées | `SELECT zones.nom, AVG(mesures.pm25) AS avg_pm25 ... ORDER BY AVG(mesures.pm25) DESC LIMIT 5` |
-| Combien de capteurs sont hors service ? | `SELECT COUNT(*) FROM capteurs WHERE capteurs.statut = :p1` |
-| Quels citoyens ont un score écologique > 80 ? | `SELECT * FROM citoyens WHERE citoyens.score_ecolo > :p1` |
-| Donne-moi le trajet le plus économique en CO2 | `SELECT * FROM trajets ORDER BY trajets.economie_co2 DESC LIMIT 1` |
+Copy `.env.example` to `.env` and adjust the values for your environment.
 
-## Automates implémentés
+| Variable | Purpose | Example / Default |
+| --- | --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://neo_user:neo_password@localhost:5432/neo_sousse` |
+| `OPENAI_API_KEY` | API key for live LLM calls | `sk-...` |
+| `USE_MOCK_LLM` | Enables offline deterministic AI responses | `false` |
+| `OPENAI_MODEL` | Model identifier for the LLM client | `gpt-4o-mini` |
+| `OPENAI_BASE_URL` | Optional endpoint for OpenAI-compatible providers | empty |
+| `HORS_SERVICE_ALERT_DELAY_SECONDS` | Delay before scheduled sensor alert creation | `86400` |
+| `TIMESCALE_ENABLED` | Feature flag for Timescale-oriented behavior | `true` |
+| `FSM_HISTORY_ENABLED` | Enables FSM persistence history | `true` |
 
-| Automate | États |
-|----------|-------|
-| Cycle de vie d'un capteur | INACTIF → ACTIF → SIGNALÉ → EN_MAINTENANCE → HORS_SERVICE |
-| Validation d'intervention | DEMANDE → TECH1_ASSIGNÉ → TECH2_VALIDE → IA_VALIDE → TERMINÉ |
-| Trajet d'un véhicule autonome | STATIONNÉ → EN_ROUTE → EN_PANNE → ARRIVÉ |
+## AI Runtime Modes
 
-Si Graphviz n'est pas installé, la page **Automates** bascule automatiquement
-sur une vue HTML de secours au lieu de bloquer le rendu.
+### Mock Mode
 
-## Tests
+Use mock mode for demos, testing, or offline execution.
 
-```bash
-USE_MOCK_LLM=true pytest tests/unit/ -v
-USE_MOCK_LLM=true pytest tests/scenarios/ -v -k "not integration"
+```powershell
+$env:USE_MOCK_LLM = "true"
+streamlit run dashboard\app.py
 ```
 
-Les fixtures de test injectent un mode mock DB/LLM pour permettre une exécution
-hors ligne des scénarios principaux.
+### Live LLM Mode
 
-## Module
+Use live mode when you want real model-generated reports and actions.
 
-Module : Théorie des Langages et Compilation  
-Section : IA 2  
-Année universitaire : 2025/2026
+Required configuration:
+
+- `USE_MOCK_LLM=false`
+- `OPENAI_API_KEY=<your_key>`
+
+Optional configuration:
+
+- `OPENAI_MODEL=<your_model>`
+- `OPENAI_BASE_URL=<compatible_endpoint>`
+
+## How To Use The Platform
+
+1. Start the application and open `http://localhost:8501`.
+2. Navigate through the sidebar pages.
+3. In `Queries`, enter a French request and inspect the generated SQL and results.
+4. In `Automata`, choose an entity type and trigger lifecycle transitions.
+5. In `AI Reports`, generate reports and download PDF exports.
+6. In `Data Explorer`, inspect the seeded operational dataset and time-series measurements.
+
+## Example Natural Language Queries
+
+| Input | Expected Intent |
+| --- | --- |
+| `Affiche les 5 zones les plus polluees` | list the most polluted areas |
+| `Combien de capteurs sont hors service ?` | count unavailable sensors |
+| `Quels citoyens ont un score ecologique > 80 ?` | retrieve top eco-score citizens |
+| `Donne-moi le trajet le plus economique en CO2` | find the most CO2-efficient route |
+| `Affiche les interventions avec priorite urgente` | filter urgent interventions |
+
+## Testing
+
+Run the automated test suites with mock AI enabled:
+
+```powershell
+$env:USE_MOCK_LLM = "true"
+pytest tests\unit -q
+pytest tests\scenarios -q
+```
+
+The test suite is designed to validate compiler behavior, FSM transitions, charting helpers, AI adapters, and end-to-end business scenarios.
+
+## Entry Points
+
+- Dashboard application: `dashboard\app.py`
+- Full database seed: `database\seed\seed_all.py`
+- Runtime configuration: `config\settings.py`
+
+## Project Status
+
+This repository represents the current packaged version of the platform, with a runnable dashboard, seeded data workflow, container support, automated tests, and configurable AI integration.
