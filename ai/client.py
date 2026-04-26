@@ -18,17 +18,17 @@ _MOCK_RESPONSES: dict[str, str] = {
     "report_air": (
         "## Rapport Qualite de l'Air\n\n"
         "### Resume executif\n"
-        "La qualite de l'air reste globalement maitrisee, mais la Zone Industrielle et les "
+        "La qualite de l'air reste globalement maitrisee, mais la zone industrielle de Sidi Abdelhamid et les "
         "axes les plus circules concentrent les depassements les plus reguliers sur la periode.\n\n"
         "### Tableau de lecture rapide\n"
         "| Indicateur | Lecture |\n"
         "|---|---|\n"
         "| Tendance globale | Legere degradation |\n"
-        "| Zone la plus exposee | Zone Industrielle |\n"
+        "| Zone la plus exposee | Zone industrielle de Sidi Abdelhamid |\n"
         "| Niveau d'alerte | ORANGE |\n\n"
         "### Zones critiques\n"
-        "- Zone Industrielle : depassements frequents aux heures de pointe.\n"
-        "- Corniche : pics ponctuels lies au trafic et aux conditions meteo.\n\n"
+        "- Zone industrielle de Sidi Abdelhamid : depassements frequents aux heures de pointe.\n"
+        "- La Corniche : pics ponctuels lies au trafic et aux conditions meteo.\n\n"
         "### Recommandations\n"
         "1. Recalibrer les capteurs les plus sollicites avant la prochaine periode de pointe.\n"
         "2. Renforcer la surveillance sur les zones a trafic dense entre 7h-9h et 17h-19h.\n"
@@ -68,7 +68,7 @@ _MOCK_RESPONSES: dict[str, str] = {
         '"description": "Inspecter puis recalibrer immediatement le capteur C-12 afin de retablir des mesures fiables.", '
         '"justification": "Le capteur derive sur un secteur sensible et fausse l\'analyse de la qualite de l\'air.", '
         '"responsable": "technicien", "delai_heures": 2, '
-        '"impact": "Restauration de la couverture de surveillance sur la zone Nord.", '
+        '"impact": "Restauration de la couverture de surveillance sur Hammam Sousse et ses axes denses.", '
         '"indicateur_succes": "Retour a un taux d\'erreur inferieur a 3% sur les prochaines mesures."}, '
         '{"priorite": 2, "titre": "Repriorisation des interventions urgentes", '
         '"description": "Passer en revue les interventions non terminees et faire remonter les dossiers critiques devant les demandes de confort.", '

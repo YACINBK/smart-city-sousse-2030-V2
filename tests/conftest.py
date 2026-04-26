@@ -15,8 +15,22 @@ os.environ.setdefault("DATABASE_URL", "postgresql://neo_user:neo_password@localh
 os.environ.setdefault("HORS_SERVICE_ALERT_DELAY_SECONDS", "30")
 
 _MOCK_ZONES = [
-    {"id": 1, "nom": "Médina", "description": "Centre historique", "geom_lat": 35.8256, "geom_lon": 10.6369, "superficie": 2.3},
-    {"id": 2, "nom": "Zone Industrielle", "description": "Secteur industriel", "geom_lat": 35.8351, "geom_lon": 10.6450, "superficie": 6.8},
+    {
+        "id": 1,
+        "nom": "Medina de Sousse",
+        "description": "Centre historique",
+        "geom_lat": 35.8254,
+        "geom_lon": 10.6370,
+        "superficie": 4.1,
+    },
+    {
+        "id": 2,
+        "nom": "Zone industrielle de Sidi Abdelhamid",
+        "description": "Secteur industriel",
+        "geom_lat": 35.8053,
+        "geom_lon": 10.6407,
+        "superficie": 9.2,
+    },
 ]
 _MOCK_CAPTEURS = [
     {"id": 1, "nom": "CAP-AIR-001", "type": "qualite_air", "zone_id": 1, "statut": "ACTIF", "fabricant": "UrbanSense"},
@@ -41,8 +55,14 @@ _MOCK_ALERTES = [
     {"id": 2, "severity": "WARNING", "resolved": False},
 ]
 _MOCK_MESURES = [
-    {"zone": "Médina", "avg_pm25": 31.4, "avg_pm10": 48.1, "max_pm25": 52.8, "nb_mesures": 240},
-    {"zone": "Zone Industrielle", "avg_pm25": 39.6, "avg_pm10": 58.7, "max_pm25": 71.1, "nb_mesures": 260},
+    {"zone": "Medina de Sousse", "avg_pm25": 24.4, "avg_pm10": 37.8, "max_pm25": 45.2, "nb_mesures": 240},
+    {
+        "zone": "Zone industrielle de Sidi Abdelhamid",
+        "avg_pm25": 39.6,
+        "avg_pm10": 58.7,
+        "max_pm25": 71.1,
+        "nb_mesures": 260,
+    },
 ]
 
 
@@ -200,25 +220,32 @@ def mock_execute_query(monkeypatch):
 @pytest.fixture(scope="session")
 def pipeline():
     from compiler.pipeline import NLToSQLPipeline
+
     return NLToSQLPipeline()
 
 
 @pytest.fixture(scope="session")
 def sensor_fsm():
     from fsm.sensor_fsm import SensorLifecycleFSM
+
     return SensorLifecycleFSM()
 
 
 @pytest.fixture(scope="session")
 def intervention_fsm():
     from fsm.intervention_fsm import InterventionWorkflowFSM
-    # AI guard always approves in tests
-    return InterventionWorkflowFSM(ai_advisor_fn=lambda ctx: {
-        "approved": True, "confidence": 0.99, "reason": "Mock approval"
-    })
+
+    return InterventionWorkflowFSM(
+        ai_advisor_fn=lambda ctx: {
+            "approved": True,
+            "confidence": 0.99,
+            "reason": "Mock approval",
+        }
+    )
 
 
 @pytest.fixture(scope="session")
 def vehicle_fsm():
     from fsm.vehicle_fsm import VehicleRouteFSM
+
     return VehicleRouteFSM()

@@ -3,27 +3,39 @@ Seeds mesures table with 90 days of realistic time-series data.
 
 Uses sinusoidal patterns + Gaussian noise to generate believable sensor readings:
   - Daily temperature cycle
-  - Higher pollution at peak hours (7-9h, 17-19h)
-  - Random anomaly spikes (simulating sensor malfunction)
-
-Total rows ≈ 90 days × 24h × ~15 active sensors = ~32,400 rows (well above 1000+ target).
+  - Higher pollution at peak hours
+  - Different pollution baselines by Sousse zone profile
+  - Random anomaly spikes
 """
 
-import random
+from __future__ import annotations
+
 import math
+import random
 from datetime import datetime, timedelta
+
 from database.connection import execute_query
+from database.seed.geo import zone_profile
 
 random.seed(99)
 
+_PM25_BASELINES = {
+    "industrial": 32,
+    "logistics": 27,
+    "urban": 22,
+    "historic": 21,
+    "residential": 18,
+    "coastal": 16,
+    "agricultural": 15,
+}
 
-def _pm25(hour: int, day_of_week: int, zone_type: str) -> float:
-    """Generate realistic PM2.5 based on time and zone type."""
-    base = 30 if "Industrielle" in zone_type else 18
-    # Peak traffic hours
-    peak = 1.0 + 0.6 * math.exp(-0.5 * ((hour - 8) / 2) ** 2) \
-               + 0.4 * math.exp(-0.5 * ((hour - 18) / 1.5) ** 2)
-    # Weekend reduction
+
+def _pm25(hour: int, day_of_week: int, profile: str) -> float:
+    """Generate realistic PM2.5 values based on time and zone profile."""
+    base = _PM25_BASELINES.get(profile, 20)
+    peak = 1.0 + 0.6 * math.exp(-0.5 * ((hour - 8) / 2) ** 2) + 0.4 * math.exp(
+        -0.5 * ((hour - 18) / 1.5) ** 2
+    )
     weekend_factor = 0.75 if day_of_week >= 5 else 1.0
     noise = random.gauss(0, 3)
     return max(1, base * peak * weekend_factor + noise)
@@ -36,8 +48,8 @@ def _temperature(hour: int, month: int) -> float:
     return round(seasonal_base + daily + random.gauss(0, 1.2), 2)
 
 
-def seed_mesures():
-    print("  → Seeding mesures (time-series, 90 days)...")
+def seed_mesures() -> None:
+    print("  -> Seeding mesures (time-series, 90 days)...")
     capteurs = execute_query(
         "SELECT c.id, c.type, z.nom AS zone FROM capteurs c "
         "LEFT JOIN zones z ON z.id = c.zone_id "
@@ -58,43 +70,59 @@ def seed_mesures():
 
         for hour in range(24):
             ts = day_dt.replace(hour=hour, minute=0, second=0, microsecond=0)
-            for cap in capteurs:
-                cap_type = cap["type"]
-                zone_name = cap.get("zone") or ""
+            for capteur in capteurs:
+                capteur_type = capteur["type"]
+                profile = zone_profile(capteur.get("zone") or "")
 
-                # Random data dropout (1% chance — simulates outage)
                 if random.random() < 0.01:
                     continue
 
-                # Spike anomaly (2% chance)
                 spike = random.random() < 0.02
 
-                pm25_val = _pm25(hour, dow, zone_name) * (3 if spike else 1) \
-                           if cap_type == "qualite_air" else None
+                pm25_val = (
+                    _pm25(hour, dow, profile) * (3 if spike else 1)
+                    if capteur_type == "qualite_air"
+                    else None
+                )
                 pm10_val = (pm25_val * random.uniform(1.4, 2.0)) if pm25_val else None
-                temp_val = _temperature(hour, month) if cap_type in ("temperature", "qualite_air") else None
-                hum_val = max(20, min(95, random.gauss(60, 15))) \
-                          if cap_type in ("humidite", "qualite_air") else None
-                co2_val = max(350, random.gauss(420, 40)) if cap_type == "qualite_air" else None
-                no2_val = max(0, random.gauss(25, 10)) if cap_type == "qualite_air" else None
-                bruit_val = max(30, random.gauss(55, 12)) if cap_type == "bruit" else None
-                trafic_val = max(0, min(100, random.gauss(
-                    60 if 7 <= hour <= 9 or 17 <= hour <= 19 else 30, 15
-                ))) if cap_type == "trafic" else None
+                temp_val = (
+                    _temperature(hour, month) if capteur_type in ("temperature", "qualite_air") else None
+                )
+                hum_val = (
+                    max(20, min(95, random.gauss(60, 15)))
+                    if capteur_type in ("humidite", "qualite_air")
+                    else None
+                )
+                co2_val = max(350, random.gauss(420, 40)) if capteur_type == "qualite_air" else None
+                no2_val = max(0, random.gauss(25, 10)) if capteur_type == "qualite_air" else None
+                bruit_val = max(30, random.gauss(55, 12)) if capteur_type == "bruit" else None
+                trafic_val = (
+                    max(
+                        0,
+                        min(
+                            100,
+                            random.gauss(60 if 7 <= hour <= 9 or 17 <= hour <= 19 else 30, 15),
+                        ),
+                    )
+                    if capteur_type == "trafic"
+                    else None
+                )
 
-                batch.append({
-                    "capteur_id": cap["id"], "mesure_at": ts,
-                    "pm25": round(pm25_val, 2) if pm25_val else None,
-                    "pm10": round(pm10_val, 2) if pm10_val else None,
-                    "temperature": temp_val,
-                    "humidite": round(hum_val, 2) if hum_val else None,
-                    "co2": round(co2_val, 2) if co2_val else None,
-                    "no2": round(no2_val, 2) if no2_val else None,
-                    "niveau_bruit": round(bruit_val, 2) if bruit_val else None,
-                    "indice_trafic": round(trafic_val, 2) if trafic_val else None,
-                })
+                batch.append(
+                    {
+                        "capteur_id": capteur["id"],
+                        "mesure_at": ts,
+                        "pm25": round(pm25_val, 2) if pm25_val else None,
+                        "pm10": round(pm10_val, 2) if pm10_val else None,
+                        "temperature": temp_val,
+                        "humidite": round(hum_val, 2) if hum_val else None,
+                        "co2": round(co2_val, 2) if co2_val else None,
+                        "no2": round(no2_val, 2) if no2_val else None,
+                        "niveau_bruit": round(bruit_val, 2) if bruit_val else None,
+                        "indice_trafic": round(trafic_val, 2) if trafic_val else None,
+                    }
+                )
 
-                # Flush batch every 500 rows
                 if len(batch) >= 500:
                     _insert_batch(batch)
                     rows_inserted += len(batch)

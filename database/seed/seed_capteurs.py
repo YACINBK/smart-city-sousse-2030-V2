@@ -1,24 +1,19 @@
 """Seeds zones, techniciens, and capteurs tables."""
 
-from database.connection import execute_query
+from __future__ import annotations
 
-ZONES = [
-    ("Médina",         "Centre historique",      36.8189, 10.1658, 2.3),
-    ("Zone Industrielle", "Activités industrielles", 36.8050, 10.1900, 8.5),
-    ("Corniche",       "Front de mer",           36.8220, 10.1520, 3.1),
-    ("Aéroport",       "Zone aéroportuaire",     36.8790, 10.2270, 12.0),
-    ("Cité Sportive",  "Quartier résidentiel",   36.8300, 10.1750, 4.2),
-    ("Port",           "Zone portuaire",         36.8100, 10.1600, 5.8),
-    ("Zone Nord",      "Quartier nord",          36.8500, 10.1650, 6.1),
-    ("Zone Sud",       "Quartier sud",           36.7900, 10.1700, 7.3),
-]
+import random
+from datetime import datetime, timedelta
+
+from database.connection import execute_query
+from database.seed.geo import SOUSSE_ZONES, seeded_zone_records, sensor_coordinate
 
 TECHNICIENS = [
-    ("Ben Ali",   "Mohamed",  "électronique"),
-    ("Trabelsi",  "Fatma",    "mécanique"),
-    ("Mansour",   "Karim",    "informatique"),
-    ("Chaabane",  "Nour",     "électronique"),
-    ("Bouzid",    "Yassine",  "mécanique"),
+    ("Ben Ali", "Mohamed", "electronique"),
+    ("Trabelsi", "Fatma", "mecanique"),
+    ("Mansour", "Karim", "informatique"),
+    ("Chaabane", "Nour", "electronique"),
+    ("Bouzid", "Yassine", "mecanique"),
 ]
 
 CAPTEUR_TYPES = ["qualite_air", "temperature", "trafic", "bruit", "humidite"]
@@ -26,18 +21,23 @@ FABRICANTS = ["SensorTech", "AirMetrics", "UrbanSense", "SmartCity"]
 STATUTS = ["ACTIF", "ACTIF", "ACTIF", "ACTIF", "SIGNALÉ", "EN_MAINTENANCE", "HORS_SERVICE"]
 
 
-def seed_capteurs():
-    print("  → Seeding zones, techniciens, capteurs...")
-    # Insert zones
-    for nom, desc, lat, lon, sup in ZONES:
+def seed_capteurs() -> None:
+    print("  -> Seeding Sousse governorate zones, techniciens, capteurs...")
+
+    for zone in SOUSSE_ZONES:
         execute_query(
             """INSERT INTO zones (nom, description, geom_lat, geom_lon, superficie)
                VALUES (:nom, :desc, :lat, :lon, :sup)
                ON CONFLICT (nom) DO NOTHING""",
-            {"nom": nom, "desc": desc, "lat": lat, "lon": lon, "sup": sup},
+            {
+                "nom": zone["name"],
+                "desc": zone["description"],
+                "lat": zone["center_lat"],
+                "lon": zone["center_lon"],
+                "sup": zone["surface_km2"],
+            },
         )
 
-    # Insert techniciens
     for nom, prenom, spec in TECHNICIENS:
         execute_query(
             """INSERT INTO techniciens (nom, prenom, specialite)
@@ -46,20 +46,23 @@ def seed_capteurs():
             {"nom": nom, "prenom": prenom, "spec": spec},
         )
 
-    # Get zone IDs
-    zones = execute_query("SELECT id FROM zones ORDER BY id")
-    zone_ids = [z["id"] for z in zones]
+    zones = seeded_zone_records(execute_query("SELECT id, nom FROM zones ORDER BY id"))
+    if not zones:
+        print("     ! No Sousse zones found, skipping capteurs.")
+        return
 
-    import random
+    sensors_per_zone = 5
+    total_sensors = len(zones) * sensors_per_zone
+
     random.seed(42)
-    from datetime import datetime, timedelta
-
-    for i in range(1, 51):
-        ctype = CAPTEUR_TYPES[i % len(CAPTEUR_TYPES)]
-        zone_id = zone_ids[i % len(zone_ids)]
-        statut = STATUTS[i % len(STATUTS)]
-        fab = FABRICANTS[i % len(FABRICANTS)]
+    for index in range(total_sensors):
+        zone = zones[index % len(zones)]
+        zone_slot = index // len(zones)
+        capteur_type = CAPTEUR_TYPES[(index + 1) % len(CAPTEUR_TYPES)]
+        statut = STATUTS[(index + 1) % len(STATUTS)]
+        fabricant = FABRICANTS[(index + 1) % len(FABRICANTS)]
         install_date = datetime.now() - timedelta(days=random.randint(30, 730))
+        latitude, longitude = sensor_coordinate(zone, zone_slot)
 
         execute_query(
             """INSERT INTO capteurs (nom, type, zone_id, statut, date_installation,
@@ -68,26 +71,27 @@ def seed_capteurs():
                        :fab, :mod, :lat, :lon)
                ON CONFLICT DO NOTHING""",
             {
-                "nom": f"Capteur-{ctype[:3].upper()}-{i:03d}",
-                "type": ctype,
-                "zone_id": zone_id,
+                "nom": f"Capteur-{capteur_type[:3].upper()}-{index + 1:03d}",
+                "type": capteur_type,
+                "zone_id": zone["id"],
                 "statut": statut,
                 "install_date": install_date,
-                "fab": fab,
-                "mod": f"Model-{random.choice(['X1','X2','Pro','Elite'])}",
-                "lat": 36.8189 + random.uniform(-0.05, 0.05),
-                "lon": 10.1658 + random.uniform(-0.05, 0.05),
+                "fab": fabricant,
+                "mod": f"Model-{random.choice(['X1', 'X2', 'Pro', 'Elite'])}",
+                "lat": latitude,
+                "lon": longitude,
             },
         )
 
-    # Seed FSM states for capteurs
     capteurs = execute_query("SELECT id, statut FROM capteurs")
-    for c in capteurs:
+    for capteur in capteurs:
         execute_query(
             """INSERT INTO fsm_states (entity_type, entity_id, state)
                VALUES ('capteur', :id, :state)
                ON CONFLICT (entity_type, entity_id) DO UPDATE SET state=EXCLUDED.state""",
-            {"id": c["id"], "state": c["statut"]},
+            {"id": capteur["id"], "state": capteur["statut"]},
         )
 
-    print(f"     - {len(zones)} zones, {len(TECHNICIENS)} techniciens, 50 capteurs")
+    print(
+        f"     - {len(zones)} zones, {len(TECHNICIENS)} techniciens, {total_sensors} capteurs"
+    )
