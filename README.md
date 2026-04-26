@@ -4,6 +4,52 @@ Smart City Sousse 2030 V2 is a ready-to-run urban operations platform that combi
 
 The application dashboard is branded as `Neo-Sousse 2030` and exposes the full platform through a single operator interface for data exploration, workflow supervision, and AI-supported decision-making.
 
+## Project Lineage
+
+This repository is the successor to the original Smart City Sousse 2030 project:
+
+- V1 repository: [Smart City Sousse 2030](https://github.com/YACINBK/smart-city-sousse-2030)
+
+The first version focused on the smart-city academic database scenario with:
+
+- a Django and Django REST Framework backend
+- a SQLite database
+- generated demo data and real-time simulation scripts
+- a Streamlit dashboard for monitoring sensors, interventions, citizens, and mobility
+
+V2 keeps the same domain foundation while extending it into a more advanced decision-support and operations platform.
+
+## V1 To V2 Evolution
+
+| Area | V1 Repository | V2 Repository |
+| --- | --- | --- |
+| Core focus | Academic database and dashboard project | Integrated smart-city operations platform |
+| Backend style | Django + Django REST Framework | Modular Python architecture by domain (`compiler`, `fsm`, `ai`, `dashboard`, `database`) |
+| Database | SQLite | PostgreSQL with a TimescaleDB-compatible schema |
+| User interaction | CRUD/API and dashboard exploration | Natural-language querying, workflow control, AI reporting, and data exploration |
+| Automation model | Real-time simulation scripts | Persisted finite-state workflows with history and scheduled alerts |
+| AI capabilities | Not central to the platform | AI reports, priority actions, SQL explanation, intervention validation |
+| Testing | Coursework-level validation | Unit and scenario suites for compiler, FSM, AI, and end-to-end flows |
+| Deployment | Local academic setup | Docker Compose and local PowerShell execution paths |
+
+## New And Modified Features In V2
+
+### Added In V2
+
+- A full French NL→SQL compiler pipeline with lexer, parser, AST, semantic analysis, and SQL generation.
+- Finite-state machines for sensors, interventions, and vehicles with transition history and state persistence.
+- AI-assisted analytical reporting, priority-action generation, and intervention validation.
+- Support for both mock LLM execution and live OpenAI-compatible providers.
+- Scenario-driven automated tests for the main business flows.
+- A containerized startup path with automatic database seeding.
+
+### Reworked From V1
+
+- The original dashboard approach has been expanded into a four-page operational console: `Queries`, `Automata`, `AI Reports`, and `Data Explorer`.
+- The original smart-city entities are preserved, but the data model now supports workflow state tracking, alerts, and time-series measurements more explicitly.
+- The data layer moved from a lightweight SQLite academic setup to a PostgreSQL-centered runtime better suited to analytical and operational use cases.
+- The project structure is now organized by platform capabilities rather than by a single web-backend application layout.
+
 ## Overview
 
 - Compile French business questions into parameterized SQL.
@@ -227,4 +273,4 @@ The test suite is designed to validate compiler behavior, FSM transitions, chart
 
 ## Project Status
 
-This repository represents the current packaged version of the platform, with a runnable dashboard, seeded data workflow, container support, automated tests, and configurable AI integration.
+This repository represents the current packaged V2 version of the platform, with a runnable dashboard, seeded data workflow, container support, automated tests, configurable AI integration, and a clear functional progression from the original V1 repository.
